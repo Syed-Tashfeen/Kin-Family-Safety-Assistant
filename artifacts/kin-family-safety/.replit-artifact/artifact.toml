@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Kin — Family Safety"
+description = "Kin is a supportive AI companion for parents. It offers voice-led, multilingual technology guidance, screen context, scam warnings, and family notifications, with a calm and accessible interface in light and dark themes."
+version = "1.0.0"
+id = "artifacts/kin-family-safety"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23367
+
+[services.development]
+run = "pnpm --filter @workspace/kin-family-safety run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/kin-family-safety", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/kin-family-safety/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23367"
+BASE_PATH = "/"
