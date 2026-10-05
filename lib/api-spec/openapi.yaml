@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: kin
+    description: Kin safety assistant operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /kin/live-token:
+    post:
+      operationId: createKinLiveToken
+      tags: [kin]
+      summary: Create a short-lived Gemini Live session token
+      description: Issues a single-use, short-lived token constrained to Kin's voice-and-screen safety session.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KinLiveTokenInput"
+      responses:
+        "200":
+          description: Ephemeral Gemini Live token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KinLiveToken"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "503":
+          description: Gemini Live is not configured or temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +66,29 @@ components:
           type: string
       required:
         - status
+    KinLiveTokenInput:
+      type: object
+      additionalProperties: false
+      properties:
+        preferredLanguage:
+          type: string
+          enum: [auto, en, hi, bn, ta, te, mr, ur]
+          default: auto
+    KinLiveToken:
+      type: object
+      properties:
+        token:
+          type: string
+        model:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+      required: [token, model, expiresAt]
+    ApiError:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
 

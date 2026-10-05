@@ -5,9 +5,6 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-export interface HealthStatus {
-  status: string;
-}
 
 export type KinLiveTokenInputPreferredLanguage = typeof KinLiveTokenInputPreferredLanguage[keyof typeof KinLiveTokenInputPreferredLanguage];
 
@@ -22,18 +19,3 @@ export const KinLiveTokenInputPreferredLanguage = {
   mr: 'mr',
   ur: 'ur',
 } as const;
-
-export interface KinLiveTokenInput {
-  preferredLanguage?: KinLiveTokenInputPreferredLanguage;
-}
-
-export interface KinLiveToken {
-  token: string;
-  model: string;
-  expiresAt: string;
-}
-
-export interface ApiError {
-  error: string;
-}
-
