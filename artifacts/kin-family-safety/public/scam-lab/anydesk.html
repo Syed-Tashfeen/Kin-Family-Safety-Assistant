@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QuickSupport Live Technician — Remote Assistance</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛡️</text></svg>">
+  <style>
+    :root {
+      --primary: #e63946;
+      --primary-dark: #b71c1c;
+      --bg: #0f172a;
+      --card: #1e293b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --border: #334155;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .top-banner {
+      background: #7f1d1d;
+      color: #fecaca;
+      padding: 10px 20px;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #991b1b;
+    }
+    .demo-badge {
+      background: #ef4444;
+      color: #fff;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+    }
+    .container {
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 0 20px;
+      flex: 1;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 32px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    }
+    .header-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 24px;
+      margin-bottom: 24px;
+    }
+    .logo-icon {
+      width: 54px;
+      height: 54px;
+      background: var(--primary);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      box-shadow: 0 8px 16px rgba(230, 57, 70, 0.4);
+    }
+    h1 { font-size: 24px; font-weight: 700; color: #fff; }
+    .subtitle { color: var(--text-muted); font-size: 14px; margin-top: 4px; }
+    .alert-box {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid #ef4444;
+      border-radius: 10px;
+      padding: 18px;
+      margin-bottom: 28px;
+      display: flex;
+      gap: 14px;
+    }
+    .alert-icon { font-size: 24px; }
+    .alert-content strong { color: #f87171; display: block; margin-bottom: 6px; font-size: 15px; }
+    .alert-content p { color: #e2e8f0; font-size: 13.5px; line-height: 1.5; }
+    
+    .code-section {
+      background: #090d16;
+      border: 2px dashed #475569;
+      border-radius: 12px;
+      padding: 28px;
+      text-align: center;
+      margin-bottom: 28px;
+      position: relative;
+    }
+    .code-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #94a3b8;
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+    .access-code {
+      font-size: 42px;
+      font-weight: 800;
+      letter-spacing: 8px;
+      color: #38bdf8;
+      font-family: "Courier New", Courier, monospace;
+      text-shadow: 0 0 20px rgba(56, 189, 248, 0.4);
+    }
+    .connection-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 14px;
+      font-size: 13px;
+      color: #f59e0b;
+      background: rgba(245, 158, 11, 0.1);
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+    .status-pulse {
+      width: 8px;
+      height: 8px;
+      background: #f59e0b;
+      border-radius: 50%;
+      box-shadow: 0 0 8px #f59e0b;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0% { opacity: 0.4; transform: scale(0.9); }
+      50% { opacity: 1; transform: scale(1.2); }
+      100% { opacity: 0.4; transform: scale(0.9); }
+    }
+    .instructions {
+      background: #111827;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+    .instructions h3 { font-size: 15px; margin-bottom: 12px; color: #cbd5e1; }
+    .instruction-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 12px;
+      font-size: 13.5px;
+      color: #94a3b8;
+    }
+    .step-number {
+      background: #334155;
+      color: #fff;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+    .btn-row {
+      display: flex;
+      gap: 14px;
+    }
+    .btn {
+      flex: 1;
+      padding: 14px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+    }
+    .btn-danger {
+      background: var(--primary);
+      color: #fff;
+    }
+    .btn-danger:hover {
+      background: var(--primary-dark);
+    }
+    .btn-secondary {
+      background: #334155;
+      color: #cbd5e1;
+    }
+    .disclaimer {
+      text-align: center;
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 24px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="top-banner">
+    <div>⚠️ CRITICAL SYSTEM SECURITY ALERT #MS-88492</div>
+    <div class="demo-badge">KIN DEMO PHISHING LAB · TEST ARTIFACT</div>
+  </div>
+
+  <div class="container">
+    <div class="card">
+      <div class="header-row">
+        <div class="logo-icon">⚡</div>
+        <div>
+          <h1>AnySupport Desktop Agent v7.1.4</h1>
+          <p class="subtitle">Certified Remote Assistance Protocol &amp; Incident Resolution</p>
+        </div>
+      </div>
+
+      <div class="alert-box">
+        <div class="alert-icon">🚨</div>
+        <div class="alert-content">
+          <strong>Immediate Technician Authorization Required</strong>
+          <p>Suspicious outbound wire transfers detected on this workstation IP. A senior Microsoft &amp; Banking Safety Engineer is waiting on your phone call to reverse pending charges.</p>
+        </div>
+      </div>
+
+      <div class="code-section">
+        <div class="code-label">Your 9-Digit Connection Address (Read this to caller)</div>
+        <div class="access-code" id="access-code">482 109 773</div>
+        <div class="connection-status">
+          <span class="status-pulse"></span>
+          <span>Technician "Alex Walker (ID: #4491)" waiting for authorization...</span>
+        </div>
+      </div>
+
+      <div class="instructions">
+        <h3>Mandatory Steps to Secure Your Account:</h3>
+        <div class="instruction-step">
+          <div class="step-number">1</div>
+          <div>Do <strong>NOT</strong> hang up the phone call with your support representative.</div>
+        </div>
+        <div class="instruction-step">
+          <div class="step-number">2</div>
+          <div>Read aloud the <strong>9-Digit Connection Address (482 109 773)</strong> to grant full keyboard and mouse access.</div>
+        </div>
+        <div class="instruction-step">
+          <div class="step-number">3</div>
+          <div>Click the red button below to accept incoming remote takeover.</div>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-danger" onclick="alert('Simulation: In a real scam, this grants full unattended access to your computer. Kin should warn you NOT to do this!')">
+          Authorize Full Unattended Remote Access
+        </button>
+        <button class="btn btn-secondary" onclick="window.close()">Cancel Session</button>
+      </div>
+
+      <p class="disclaimer">
+        Simulated phishing page created for the Kin Family Safety Assistant hackathon demonstration. Do not share codes with unexpected callers.
+      </p>
+    </div>
+  </div>
+
+</body>
+</html>

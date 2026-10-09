@@ -1,16 +1,26 @@
-import { drizzle } from "drizzle-orm/node-postgres";
+import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "./schema";
 
 const { Pool } = pg;
 
-if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-  );
+let pool: pg.Pool | null = null;
+let db: NodePgDatabase<typeof schema> | null = null;
+
+const dbUrl = process.env.DATABASE_URL;
+
+if (dbUrl && !dbUrl.includes("user:password@localhost")) {
+  try {
+    pool = new Pool({
+      connectionString: dbUrl,
+      connectionTimeoutMillis: 3000,
+      ssl: dbUrl.includes("neon.tech") || dbUrl.includes("sslmode=require") ? { rejectUnauthorized: false } : undefined,
+    });
+    db = drizzle(pool, { schema });
+  } catch (err) {
+    console.warn("Could not initialize PostgreSQL pool, using resilient in-memory fallback:", err);
+  }
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle(pool, { schema });
-
+export { pool, db };
 export * from "./schema";

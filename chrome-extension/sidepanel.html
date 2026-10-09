@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kin — Family Safety Assistant</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --card: #151d2f;
+      --border: #243048;
+      --primary: #0284c7;
+      --primary-glow: #38bdf8;
+      --danger: #ef4444;
+      --success: #10b981;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      padding: 16px;
+      font-size: 13px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 17px;
+      font-weight: 800;
+      color: #fff;
+    }
+    .status-badge {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--success);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .status-badge.live {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--danger);
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+    .pulse-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.4; transform: scale(0.9); }
+      50% { opacity: 1; transform: scale(1.15); }
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .card-title {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    /* Voice Mic Visualizer */
+    .mic-section {
+      text-align: center;
+      padding: 10px 0;
+    }
+    .mic-button {
+      width: 68px;
+      height: 68px;
+      border-radius: 50%;
+      background: #0284c7;
+      color: #fff;
+      border: none;
+      font-size: 26px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 25px rgba(2, 132, 199, 0.4);
+      transition: all 0.2s;
+    }
+    .mic-button.active {
+      background: #ef4444;
+      box-shadow: 0 0 35px rgba(239, 68, 68, 0.6);
+      animation: pulse 1.2s infinite;
+    }
+    .mic-label {
+      margin-top: 10px;
+      font-weight: 700;
+      font-size: 14px;
+    }
+    .mic-sub {
+      color: var(--text-muted);
+      font-size: 12px;
+      margin-top: 2px;
+    }
+    /* KIN AI ANALYSIS Terminal Box */
+    .terminal-box {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11.5px;
+      background: #050811;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 12px;
+      line-height: 1.5;
+    }
+    .terminal-box.high-risk {
+      border: 2px solid var(--danger);
+      background: #110709;
+    }
+    .term-heading {
+      color: var(--primary-glow);
+      font-weight: 700;
+      margin-bottom: 8px;
+      border-bottom: 1px solid #1e293b;
+      padding-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .term-row {
+      margin-bottom: 6px;
+    }
+    .term-row span {
+      color: var(--text-muted);
+      display: block;
+      font-size: 10.5px;
+    }
+    .term-decision {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px dashed #334155;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .decision-pill {
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
+    .decision-pill.safe {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+    }
+    .decision-pill.danger {
+      background: #dc2626;
+      color: #fff;
+    }
+    /* Quick Actions */
+    .btn-row {
+      display: flex;
+      gap: 8px;
+    }
+    .btn {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 12.5px;
+      cursor: pointer;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-danger { background: #dc2626; color: #fff; }
+    .btn-secondary { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; }
+    .btn:hover { filter: brightness(1.1); }
+    /* Telegram Notification Mini Banner */
+    .telegram-chip {
+      background: rgba(2, 132, 199, 0.12);
+      border: 1px solid rgba(2, 132, 199, 0.3);
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .tg-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="brand">
+      <span>🛡️</span>
+      <span>kin<span style="color:var(--primary-glow);">.</span></span>
+      <span style="font-size: 10px; background: #1e293b; color: #38bdf8; padding: 2px 6px; border-radius: 4px; border: 1px solid #334155;">P0 EXTENSION</span>
+    </div>
+    <div class="status-badge" id="live-badge">
+      <span class="pulse-dot"></span>
+      <span id="badge-text">READY</span>
+    </div>
+  </div>
+
+  <!-- Live Voice & Tab Capture Controller -->
+  <div class="card mic-section">
+    <button class="mic-button" id="mic-toggle-btn" title="Start live session with audio & vision">
+      🎙️
+    </button>
+    <div class="mic-label" id="mic-status-label">Start Guardian Live Session</div>
+    <div class="mic-sub" id="mic-status-sub">Captures tab ~1 FPS and streams live voice to Gemini</div>
+  </div>
+
+  <!-- KIN AI ANALYSIS Card -->
+  <div class="card">
+    <div class="card-title">
+      <span>Guardian Intelligence Loop</span>
+      <span id="risk-score-pill" style="color:#10b981; font-weight:700;">RISK 12/100</span>
+    </div>
+    
+    <div class="terminal-box" id="analysis-box">
+      <div class="term-heading">
+        <span>KIN AI ANALYSIS</span>
+        <span id="term-status">ACTIVE</span>
+      </div>
+      <div class="term-row">
+        <span>👁️ Screen Understanding</span>
+        <div id="term-screen">✓ Active tab monitored for deceptive forms</div>
+      </div>
+      <div class="term-row">
+        <span>🎙️ Conversation Understanding</span>
+        <div id="term-voice">✓ Audio channel listening for social engineering</div>
+      </div>
+      <div class="term-row">
+        <span>🧠 Risk Reasoning</span>
+        <div id="term-reason">✓ No coercive language or remote software</div>
+      </div>
+      <div class="term-decision">
+        <span>🚨 Decision</span>
+        <span class="decision-pill safe" id="term-decision-pill">LOW RISK</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Telegram Family Relay -->
+  <div class="telegram-chip">
+    <div class="tg-left">
+      <span>✈️</span>
+      <div>
+        <strong>Telegram Alert Bot</strong>
+        <div style="font-size: 11px; color: #94a3b8;">@KinGuardianBot · Family Group</div>
+      </div>
+    </div>
+    <span style="color: #10b981; font-size: 11px; font-weight: 600;">Linked ✓</span>
+  </div>
+
+  <!-- Interactive Controls & Demo Triggers -->
+  <div class="card">
+    <div class="card-title">Live Testing Triggers</div>
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <button class="btn btn-secondary" id="test-pointer-btn">
+        🎯 Test On-Page Visual Pointer
+      </button>
+      <button class="btn btn-danger" id="test-scam-overlay-btn">
+        🚨 Trigger Red Scam Overlay &amp; Telegram
+      </button>
+      <button class="btn btn-secondary" id="clear-overlay-btn">
+        🧹 Clear Active Page Overlays
+      </button>
+    </div>
+  </div>
+
+  <!-- Quick Links -->
+  <div class="btn-row">
+    <a href="http://localhost:5173/scam-lab/anydesk.html" target="_blank" class="btn btn-secondary" style="font-size: 11.5px;">
+      Open AnyDesk Lab ↗
+    </a>
+    <a href="http://localhost:5173/scam-lab/bank.html" target="_blank" class="btn btn-secondary" style="font-size: 11.5px;">
+      Open Bank Lab ↗
+    </a>
+  </div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

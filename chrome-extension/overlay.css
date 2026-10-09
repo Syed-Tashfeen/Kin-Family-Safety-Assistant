@@ -1,0 +1,184 @@
+/* Kin Content Script Overlay Styles */
+
+/* 1. Visual Pointer / Arrow Component */
+#kin-pointer-container {
+  position: fixed;
+  z-index: 2147483646;
+  pointer-events: none;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translate(-50%, -100%);
+}
+
+.kin-pointer-arrow {
+  width: 0;
+  height: 0;
+  border-left: 14px solid transparent;
+  border-right: 14px solid transparent;
+  border-top: 22px solid #0284c7;
+  filter: drop-shadow(0 4px 10px rgba(2, 132, 199, 0.7));
+  animation: kin-bounce 1.2s infinite ease-in-out;
+}
+
+.kin-pointer-target-ring {
+  width: 44px;
+  height: 44px;
+  border: 3px solid #38bdf8;
+  border-radius: 50%;
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 20px #0284c7, inset 0 0 10px #38bdf8;
+  animation: kin-ring-pulse 1.5s infinite;
+}
+
+.kin-pointer-label {
+  background: #0f172a;
+  color: #fff;
+  border: 1.5px solid #38bdf8;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+@keyframes kin-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes kin-ring-pulse {
+  0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.8; }
+  50% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.4; }
+  100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.8; }
+}
+
+/* 2. Red Scam Overlay Banner & Viewport Border */
+#kin-scam-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  pointer-events: auto;
+  box-shadow: inset 0 0 0 12px #dc2626, inset 0 0 100px rgba(220, 38, 38, 0.4);
+  animation: kin-danger-pulse 1.6s infinite ease-in-out;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  padding: 24px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.kin-overlay-card {
+  background: #7f1d1d;
+  color: #fff;
+  border: 3px solid #ef4444;
+  border-radius: 16px;
+  padding: 24px 32px;
+  max-width: 700px;
+  width: 100%;
+  box-shadow: 0 25px 60px rgba(0,0,0,0.7), 0 0 40px rgba(239, 68, 68, 0.6);
+  animation: kin-slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.kin-overlay-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #fca5a5;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.kin-overlay-title {
+  font-size: 24px;
+  font-weight: 800;
+  color: #fff;
+  margin-bottom: 10px;
+  line-height: 1.25;
+}
+
+.kin-overlay-summary {
+  font-size: 15px;
+  color: #fecaca;
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.kin-overlay-evidence {
+  background: rgba(0, 0, 0, 0.35);
+  border-left: 4px solid #ef4444;
+  padding: 12px 16px;
+  border-radius: 6px;
+  font-size: 13.5px;
+  color: #e2e8f0;
+  margin-bottom: 18px;
+}
+
+.kin-overlay-action {
+  background: #fff;
+  color: #991b1b;
+  padding: 14px 18px;
+  border-radius: 10px;
+  font-size: 14.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.kin-overlay-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.kin-btn-dismiss {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.kin-btn-dismiss:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+@keyframes kin-danger-pulse {
+  0%, 100% {
+    box-shadow: inset 0 0 0 10px #dc2626, inset 0 0 80px rgba(220, 38, 38, 0.35);
+  }
+  50% {
+    box-shadow: inset 0 0 0 16px #ef4444, inset 0 0 140px rgba(239, 68, 68, 0.55);
+  }
+}
+
+@keyframes kin-slide-in {
+  from {
+    transform: translateY(-40px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}

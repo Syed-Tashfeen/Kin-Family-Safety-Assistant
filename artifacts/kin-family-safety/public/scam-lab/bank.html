@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>National Banking Security Gateway — Urgent KYC & Fraud Reversal</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏦</text></svg>">
+  <style>
+    :root {
+      --primary: #1e3a8a;
+      --accent: #dc2626;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .top-header {
+      background: #1e3a8a;
+      color: #fff;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    .bank-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 700;
+      font-size: 18px;
+      letter-spacing: 0.5px;
+    }
+    .demo-tag {
+      background: #ef4444;
+      color: #fff;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 11px;
+    }
+    .urgency-bar {
+      background: #fef2f2;
+      border-bottom: 2px solid #ef4444;
+      padding: 12px 24px;
+      color: #991b1b;
+      font-size: 13.5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      font-weight: 600;
+    }
+    .timer {
+      background: #ef4444;
+      color: #fff;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 14px;
+    }
+    .main-wrap {
+      max-width: 600px;
+      margin: 30px auto;
+      padding: 0 20px;
+      flex: 1;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.06);
+    }
+    h2 { font-size: 20px; color: #1e293b; margin-bottom: 8px; }
+    .charge-alert {
+      background: #fff1f2;
+      border: 1px solid #fecdd3;
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 24px;
+    }
+    .charge-alert .amount {
+      font-size: 26px;
+      font-weight: 800;
+      color: #be123c;
+      margin-top: 4px;
+    }
+    .form-group {
+      margin-bottom: 18px;
+    }
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #334155;
+      margin-bottom: 6px;
+    }
+    input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus {
+      border-color: #2563eb;
+    }
+    .otp-input {
+      font-size: 22px;
+      letter-spacing: 8px;
+      text-align: center;
+      font-family: monospace;
+      background: #fffbeb;
+      border-color: #f59e0b;
+    }
+    .help-hint {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 5px;
+    }
+    .danger-warning {
+      color: #b91c1c;
+      font-size: 12px;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+    .btn-submit {
+      width: 100%;
+      background: #dc2626;
+      color: #fff;
+      border: none;
+      padding: 15px;
+      font-size: 15px;
+      font-weight: 700;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: background 0.2s;
+    }
+    .btn-submit:hover {
+      background: #b91c1c;
+    }
+    .security-badges {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid #f1f5f9;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+
+  <header class="top-header">
+    <div class="bank-logo">
+      <span>🛡️</span>
+      <span>National Cyber Shield NetBanking</span>
+    </div>
+    <div class="demo-tag">KIN DEMO PHISHING LAB</div>
+  </header>
+
+  <div class="urgency-bar">
+    <span>⚠️ Account lock imminent: Unauthorized transaction in progress. Reverse within</span>
+    <span class="timer" id="timer">02:37</span>
+  </div>
+
+  <main class="main-wrap">
+    <div class="card">
+      <h2>Reverse Unauthorized Debit</h2>
+      <p style="color:#64748b; font-size:13.5px; margin-bottom:18px;">
+        A charge of <strong>$1,850.00 / ₹1,49,000</strong> to "CryptoExchange Int" is pending. Verify your identity immediately to block the funds transfer.
+      </p>
+
+      <div class="charge-alert">
+        <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #9f1239; font-weight: 700;">Pending Fraudulent Withdrawal</div>
+        <div class="amount">₹1,49,000.00</div>
+        <div style="font-size: 12px; color: #475569; margin-top: 4px;">Merchant: Global Digital Remittance Corp</div>
+      </div>
+
+      <form onsubmit="event.preventDefault(); alert('Simulation: In a real scam, this steals your banking credentials and drains your account! Kin should immediately raise a high-risk scam alert.');">
+        <div class="form-group">
+          <label for="acc-name">Account Holder Full Name</label>
+          <input type="text" id="acc-name" value="Maya Sharma" required>
+        </div>
+
+        <div class="form-group">
+          <label for="card-num">16-Digit Debit / Credit Card Number</label>
+          <input type="text" id="card-num" value="4532 •••• •••• 8821" required>
+        </div>
+
+        <div class="form-group">
+          <label for="pin">ATM / UPI Security PIN</label>
+          <input type="password" id="pin" placeholder="Enter 4 or 6 digit PIN" required>
+          <p class="help-hint">Required to verify cardholder authorization.</p>
+        </div>
+
+        <div class="form-group">
+          <label for="otp">One-Time Password (OTP) received on SMS</label>
+          <input type="text" id="otp" class="otp-input" placeholder="849201" maxlength="6" required>
+          <p class="danger-warning">⚠️ Read OTP to the officer or enter above to cancel unauthorized debit.</p>
+        </div>
+
+        <button type="submit" class="btn-submit">
+          Cancel Charge &amp; Secure Account Immediately
+        </button>
+      </form>
+
+      <div class="security-badges">
+        <span>🔒 256-Bit SSL Encrypted</span>
+        <span>🛡️ RBI / Federal Verified</span>
+        <span>⚡ Instant Cancellation</span>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    let seconds = 157;
+    setInterval(() => {
+      if (seconds > 0) {
+        seconds--;
+        const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+        const s = (seconds % 60).toString().padStart(2, '0');
+        document.getElementById('timer').innerText = `${m}:${s}`;
+      }
+    }, 1000);
+  </script>
+</body>
+</html>
