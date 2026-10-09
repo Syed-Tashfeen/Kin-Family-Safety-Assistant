@@ -16,7 +16,7 @@ export default function ScamLab() {
           <span>/</span>
           <span>DEMO WORKSPACE</span>
         </div>
-        <h1 style={{ fontSize: '28px', fontWeight: 700, marginTop: '4px', color: 'var(--foreground, #0f172a)' }}>
+        <h1 style={{ fontSize: '28px', fontWeight: 700, marginTop: '4px', color: '#2E2827' }}>
           Kin Phishing &amp; Scam Test Lab
         </h1>
         <p style={{ color: '#64748b', fontSize: '14px', marginTop: '2px' }}>

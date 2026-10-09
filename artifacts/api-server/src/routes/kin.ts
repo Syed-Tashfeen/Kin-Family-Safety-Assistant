@@ -6,10 +6,20 @@ import {
 import { db, sessionsTable, alertsTable } from "@workspace/db";
 
 const router: IRouter = Router();
-const LIVE_MODEL = "gemini-3.8-live";
+const LIVE_MODEL = process.env.GEMINI_LIVE_MODEL || "gemini-3.8-live";
 const TOKEN_WINDOW_MS = 10 * 60 * 1000;
 const TOKEN_REQUEST_LIMIT = 8;
 const tokenRequests = new Map<string, number[]>();
+
+function getGeminiApiKeys(): string[] {
+  const rawList = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || "";
+  return rawList
+    .split(",")
+    .map((k) => k.trim())
+    .filter((k) => k.length > 0);
+}
+
+let activeKeyIndex = 0;
 
 const highlightParameters = {
   type: "OBJECT",
@@ -158,6 +168,8 @@ function isSameOrigin(origin: string | undefined, host: string | undefined) {
   if (!origin || !host) return true;
   try {
     if (
+      origin === "null" ||
+      origin.startsWith("file://") ||
       origin.startsWith("chrome-extension://") ||
       origin.startsWith("moz-extension://") ||
       origin.includes("localhost") ||
@@ -200,7 +212,7 @@ router.get("/kin/sessions", async (_req, res) => {
   } catch {
     // fallback to in-memory
   }
-  res.json(inMemorySessions);
+  return res.json(inMemorySessions);
 });
 
 router.post("/kin/sessions", async (req, res) => {
@@ -229,7 +241,7 @@ router.post("/kin/sessions", async (req, res) => {
   } catch {
     // fallback maintained in memory
   }
-  res.status(201).json(session);
+  return res.status(201).json(session);
 });
 
 router.get("/kin/alerts", async (_req, res) => {
@@ -241,7 +253,7 @@ router.get("/kin/alerts", async (_req, res) => {
   } catch {
     // fallback to in-memory
   }
-  res.json(inMemoryAlerts);
+  return res.json(inMemoryAlerts);
 });
 
 router.post("/kin/alerts", async (req, res) => {
@@ -276,7 +288,7 @@ router.post("/kin/alerts", async (req, res) => {
   } catch {
     // fallback maintained in memory
   }
-  res.status(201).json(alert);
+  return res.status(201).json(alert);
 });
 
 // Telegram notification simulation & relay
@@ -291,7 +303,7 @@ router.post("/kin/telegram-alert", async (req, res) => {
     message: `🚨 *KIN SAFETY INTERVENTION*\n\n*Incident:* ${title}\n*Summary:* ${summary}\n*Evidence:* ${evidence}\n\n_Auto-dispatched by Kin Guardian Service._`,
     hasScreenshot: Boolean(screenshotPreview),
   };
-  res.json(dispatchRecord);
+  return res.json(dispatchRecord);
 });
 
 // -------------------------------------------------------------
@@ -307,8 +319,8 @@ router.post("/kin/live-token", async (req, res) => {
     return res.status(429).json({ error: "Please wait a few minutes before starting another live session." });
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
+  const apiKeys = getGeminiApiKeys();
+  if (apiKeys.length === 0) {
     return res.status(503).json({ error: "Live sessions are not configured yet. You can still try Kin in demo mode." });
   }
 
@@ -321,74 +333,101 @@ router.post("/kin/live-token", async (req, res) => {
   const expiresAt = new Date(now + 30 * 60 * 1000).toISOString();
   const newSessionExpireTime = new Date(now + 60 * 1000).toISOString();
 
-  try {
-    const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/auth_tokens",
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-goog-api-key": apiKey,
-        },
-        body: JSON.stringify({
-          uses: 1,
-          expireTime: expiresAt,
-          newSessionExpireTime,
-          bidiGenerateContentSetup: {
-            model: `models/${LIVE_MODEL}`,
-            generationConfig: { responseModalities: ["AUDIO"] },
-            inputAudioTranscription: {},
-            outputAudioTranscription: {},
-            sessionResumption: {},
-            systemInstruction: {
-              parts: [{ text: systemInstruction(parsed.data.preferredLanguage ?? "auto") }],
-            },
-            tools: [
-              { googleSearch: {} },
-              { functionDeclarations: functionTools },
-            ],
-          },
-        }),
-        signal: AbortSignal.timeout(15_000),
-      },
-    );
+  const startIndex = activeKeyIndex;
+  let lastErrorMessage = "Unknown error";
 
-    const payload = (await response.json().catch(() => ({}))) as {
-      name?: unknown;
-      expireTime?: unknown;
-      error?: { message?: unknown };
-    };
+  for (let attempt = 0; attempt < apiKeys.length; attempt++) {
+    const keyIndex = (startIndex + attempt) % apiKeys.length;
+    const apiKey = apiKeys[keyIndex];
 
-    if (!response.ok) {
-      req.log.error(
+    try {
+      const response = await fetch(
+        "https://generativelanguage.googleapis.com/v1beta/auth_tokens",
         {
-          statusCode: response.status,
-          providerMessage:
-            typeof payload.error?.message === "string"
-              ? payload.error.message
-              : "No provider error message",
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-goog-api-key": apiKey,
+          },
+          body: JSON.stringify({
+            uses: 1,
+            expireTime: expiresAt,
+            newSessionExpireTime,
+            bidiGenerateContentSetup: {
+              model: `models/${LIVE_MODEL}`,
+              generationConfig: { responseModalities: ["AUDIO"] },
+              inputAudioTranscription: {},
+              outputAudioTranscription: {},
+              sessionResumption: {},
+              systemInstruction: {
+                parts: [{ text: systemInstruction(parsed.data.preferredLanguage ?? "auto") }],
+              },
+              tools: [
+                { functionDeclarations: functionTools },
+              ],
+            },
+          }),
+          signal: AbortSignal.timeout(15_000),
         },
-        "Gemini Live token request failed",
       );
-      return res.status(503).json({ error: "Kin could not start a live session. Please try again or use demo mode." });
-    }
 
-    if (typeof payload.name !== "string" || !payload.name) {
-      req.log.error("Gemini Live token response did not include a token name");
-      return res.status(503).json({ error: "Kin received an incomplete response. Please try again." });
-    }
+      const payload = (await response.json().catch(() => ({}))) as {
+        name?: unknown;
+        expireTime?: unknown;
+        error?: { message?: unknown };
+      };
 
-    const data = CreateKinLiveTokenResponse.parse({
-      token: payload.name,
-      model: LIVE_MODEL,
-      expiresAt:
-        typeof payload.expireTime === "string" ? payload.expireTime : expiresAt,
-    });
-    return res.json(data);
-  } catch (error) {
-    req.log.error({ err: error }, "Could not create Gemini Live token");
-    return res.status(503).json({ error: "Kin could not reach Gemini Live. Please try again or use demo mode." });
+      if (!response.ok) {
+        const errorMsg =
+          typeof payload.error?.message === "string"
+            ? payload.error.message
+            : `HTTP ${response.status}`;
+        lastErrorMessage = errorMsg;
+        req.log.warn(
+          {
+            keyIndex,
+            totalKeys: apiKeys.length,
+            statusCode: response.status,
+            providerMessage: errorMsg,
+          },
+          `Gemini API key [${keyIndex + 1}/${apiKeys.length}] failed or exhausted; failing over to next key...`,
+        );
+        continue;
+      }
+
+      if (typeof payload.name !== "string" || !payload.name) {
+        req.log.error("Gemini Live token response did not include a token name");
+        lastErrorMessage = "Missing token name in response";
+        continue;
+      }
+
+      // Rotate active index forward so the next user starts with the next key
+      activeKeyIndex = (keyIndex + 1) % apiKeys.length;
+      req.log.info({ keyIndex: keyIndex + 1, totalKeys: apiKeys.length }, "Gemini Live token issued successfully");
+
+      const data = CreateKinLiveTokenResponse.parse({
+        token: payload.name,
+        model: LIVE_MODEL,
+        expiresAt:
+          typeof payload.expireTime === "string" ? payload.expireTime : expiresAt,
+      });
+      return res.json(data);
+    } catch (error) {
+      req.log.warn(
+        { keyIndex: keyIndex + 1, err: error },
+        `Could not reach Gemini Live with key [${keyIndex + 1}/${apiKeys.length}], trying next...`,
+      );
+      lastErrorMessage = error instanceof Error ? error.message : "Network error";
+    }
   }
+
+  req.log.error(
+    { lastErrorMessage, keysTested: apiKeys.length },
+    "All Gemini API keys in rotation pool failed or exceeded quota",
+  );
+  return res.status(503).json({
+    error: `All ${apiKeys.length} Gemini API key(s) in the rotation pool have exceeded quota or failed (${lastErrorMessage}). Please add fresh keys from a different Google account or use demo mode.`,
+  });
 });
 
 export default router;

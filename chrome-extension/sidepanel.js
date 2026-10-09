@@ -141,9 +141,31 @@ function captureAndSendTabFrame() {
 // -------------------------------------------------------------
 async function startLiveSession() {
   try {
+    micStatusLabel.textContent = "Checking microphone access…";
+
+    // 1. Immediately request Microphone stream while user click gesture is active
+    try {
+      audioStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
+      });
+    } catch (micErr) {
+      if (micErr.name === "NotAllowedError" || (micErr.message && micErr.message.toLowerCase().includes("dismissed"))) {
+        // In Chrome side panels, Chrome often suppresses Omnibox permission prompts.
+        // Opening permission.html in a full tab allows the user to click Allow once.
+        if (typeof chrome !== "undefined" && chrome.tabs && chrome.runtime) {
+          micStatusLabel.textContent = "Action needed: allow mic in tab";
+          chrome.tabs.create({ url: chrome.runtime.getURL("permission.html") });
+          alert("Chrome requires microphone permission to be granted in a regular tab. We opened a permission tab for you — please click 'Allow Microphone Access' there, then click the mic button here again.");
+          setLiveState(false);
+          return;
+        }
+      }
+      throw micErr;
+    }
+
     micStatusLabel.textContent = "Requesting secure token…";
 
-    // 1. Fetch ephemeral token from backend
+    // 2. Fetch ephemeral token from backend
     const res = await fetch(`${BACKEND_URL}/api/kin/live-token`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -151,12 +173,13 @@ async function startLiveSession() {
     });
 
     if (!res.ok) {
-      throw new Error(`Token gateway returned ${res.status}`);
+      const errJson = await res.json().catch(() => ({}));
+      throw new Error(errJson.error || `Token gateway returned ${res.status}`);
     }
 
     const { token, model } = await res.json();
 
-    // 2. Open Gemini Live Multimodal WebSocket
+    // 3. Open Gemini Live Multimodal WebSocket
     const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token=${encodeURIComponent(token)}`;
     socket = new WebSocket(wsUrl);
 
@@ -177,7 +200,6 @@ async function startLiveSession() {
               ],
             },
             tools: [
-              { googleSearch: {} },
               {
                 functionDeclarations: [
                   {
@@ -231,11 +253,7 @@ async function startLiveSession() {
         })
       );
 
-      // 3. Start Microphone Audio Capture (16kHz PCM)
-      audioStream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
-      });
-
+      // 4. Start Microphone Audio Capture using pre-acquired audioStream (16kHz PCM)
       audioContext = new (window.AudioContext || window.webkitAudioContext)();
       await audioContext.resume();
 

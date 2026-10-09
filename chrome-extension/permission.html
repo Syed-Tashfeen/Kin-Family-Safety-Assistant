@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kin Guardian — Microphone Permission</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --card: #131a29;
+      --border: #1e293b;
+      --primary: #f97316;
+      --text: #f8fafc;
+      --sub: #94a3b8;
+      --accent: #10b981;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 36px 32px;
+      max-width: 460px;
+      text-align: center;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(249, 115, 22, 0.15);
+      color: var(--primary);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 20px;
+    }
+    h1 {
+      font-size: 22px;
+      font-weight: 800;
+      margin-bottom: 12px;
+    }
+    p {
+      color: var(--sub);
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+    .btn {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      padding: 14px 28px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      transition: all 0.2s;
+    }
+    .btn:hover {
+      background: #ea580c;
+      transform: translateY(-1px);
+    }
+    .status-msg {
+      margin-top: 20px;
+      font-size: 14px;
+      padding: 12px;
+      border-radius: 8px;
+      display: none;
+    }
+    .status-msg.success {
+      display: block;
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--accent);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .status-msg.error {
+      display: block;
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="badge">🎙️ KIN GUARDIAN LIVE VOICE</div>
+    <h1>Allow Microphone Permission</h1>
+    <p>
+      Chrome requires you to grant microphone permissions in a regular browser tab once. 
+      Click the button below and select <strong>"Allow"</strong> when prompted by Chrome.
+    </p>
+
+    <button id="grant-btn" class="btn">
+      🎙️ Allow Microphone Access
+    </button>
+
+    <div id="status" class="status-msg"></div>
+  </div>
+
+  <script>
+    const btn = document.getElementById("grant-btn");
+    const statusDiv = document.getElementById("status");
+
+    async function requestPermission() {
+      btn.disabled = true;
+      btn.textContent = "Requesting permission…";
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Release stream immediately
+        stream.getTracks().forEach(t => t.stop());
+
+        statusDiv.className = "status-msg success";
+        statusDiv.innerHTML = "✅ <strong>Microphone access granted!</strong><br>You can now close this tab and click the microphone in the Kin side panel.";
+        btn.style.display = "none";
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = "🎙️ Try Again";
+        statusDiv.className = "status-msg error";
+        statusDiv.innerHTML = "⚠️ Permission was not granted (" + err.message + ").<br>Please click the lock/settings icon in your address bar and set Microphone to <strong>Allow</strong>.";
+      }
+    }
+
+    btn.addEventListener("click", requestPermission);
+
+    // Auto-trigger on load if user opened with action
+    window.addEventListener("DOMContentLoaded", () => {
+      // Check if already granted
+      if (navigator.permissions && navigator.permissions.query) {
+        navigator.permissions.query({ name: 'microphone' }).then(res => {
+          if (res.state === 'granted') {
+            statusDiv.className = "status-msg success";
+            statusDiv.innerHTML = "✅ <strong>Microphone is already allowed!</strong><br>You can close this tab and use Kin in your side panel.";
+            btn.style.display = "none";
+          }
+        }).catch(() => {});
+      }
+    });
+  </script>
+</body>
+</html>

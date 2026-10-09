@@ -11,14 +11,14 @@ import { useCreateKinLiveToken } from '@workspace/api-client-react';
 import { 
   Activity, AlertTriangle, ArrowLeft, AudioLines, Check, ChevronRight, 
   CircleHelp, Clock3, Copy, Eye, History, Languages, LayoutDashboard, 
-  Mic, MicOff, Moon, MonitorUp, MoonStar, Pause, Radio, Send, 
-  Settings as SettingsIcon, Shield, ShieldAlert, ShieldCheck, Sun, 
+  Mic, MicOff, MonitorUp, Pause, Radio, Send, 
+  Settings as SettingsIcon, Shield, ShieldAlert, ShieldCheck, 
   Trash2, X, MessageSquare, ExternalLink, CheckCircle2 
 } from 'lucide-react';
 
 type KinAlert = { id:string; createdAt:string; severity:'high'|'medium'|'info'; title:string; summary:string; evidence:string; recommendedAction:string; screenshotDataUrl?:string; demo?:boolean };
 type Language='auto'|'en'|'hi'|'bn'|'ta'|'te'|'mr'|'ur';
-type KinSettings = { preferredLanguage:Language; familyName:string; familyContact:string; theme:'light'|'dark' };
+type KinSettings = { preferredLanguage:Language; familyName:string; familyContact:string };
 type Transcript = { role:'you'|'kin'; text:string };
 
 type GuardianAnalysis = {
@@ -41,7 +41,7 @@ type TelegramNotification = {
 };
 
 const SETTINGS_KEY='kin-settings-v1', ALERTS_KEY='kin-alerts-v1';
-const defaults:KinSettings={preferredLanguage:'auto',familyName:'Maya',familyContact:'+1 (555) 234-5678',theme:'light'};
+const defaults:KinSettings={preferredLanguage:'auto',familyName:'Maya',familyContact:'+1 (555) 234-5678'};
 const languages=[['en','English'],['hi','हिन्दी'],['bn','বাংলা'],['ta','தமிழ்'],['te','తెలుగు'],['mr','मराठी'],['ur','اردو'],['auto','Auto-detect']];
 
 const safetySystem=(language:string)=>[
@@ -92,7 +92,8 @@ function AppShell(){
   const contextRef=useRef<AudioContext|null>(null), processorRef=useRef<ScriptProcessorNode|null>(null), sourceRef=useRef<MediaStreamAudioSourceNode|null>(null), screenImageRef=useRef(''), outputSourceRef=useRef<AudioBufferSourceNode|null>(null);
   const audioQueue=useRef<string[]>([]), isPlaying=useRef(false), audioElement=useRef<HTMLAudioElement|null>(null), screenTimer=useRef<number|undefined>(undefined), sessionReady=useRef(false), suppressAudio=useRef(false);
 
-  useEffect(()=>{try{localStorage.setItem(SETTINGS_KEY,JSON.stringify(settings))}catch{}document.documentElement.classList.toggle('dark',settings.theme==='dark')},[settings]);
+  useEffect(()=>{try{localStorage.setItem(SETTINGS_KEY,JSON.stringify(settings))}catch{}document.documentElement.classList.remove('dark')},[settings]);
+  useEffect(()=>{document.documentElement.classList.remove('dark')},[]);
   useEffect(()=>{try{localStorage.setItem(ALERTS_KEY,JSON.stringify(alerts))}catch{}},[alerts]);
 
   const playTelegramChime = useCallback(() => {
@@ -199,7 +200,7 @@ function AppShell(){
       socket.onopen=async()=>{
         try{
           sessionReady.current=false;
-          socket.send(JSON.stringify({setup:{model:`models/${token.model}`,generationConfig:{responseModalities:['AUDIO']},inputAudioTranscription:{},outputAudioTranscription:{},sessionResumption:{},systemInstruction:{parts:[{text:safetySystem(settings.preferredLanguage)}]},tools:[{googleSearch:{}},{functionDeclarations:[
+          socket.send(JSON.stringify({setup:{model:`models/${token.model}`,generationConfig:{responseModalities:['AUDIO']},inputAudioTranscription:{},outputAudioTranscription:{},sessionResumption:{},systemInstruction:{parts:[{text:safetySystem(settings.preferredLanguage)}]},tools:[{functionDeclarations:[
             {name:'highlight_screen_element',description:'Point out a visible screen control to help the parent with the next step. Coordinates are normalized fractions of the shared screen.',parameters:{type:'OBJECT',properties:{x:{type:'NUMBER',description:'Left position as a fraction from 0 to 1.'},y:{type:'NUMBER',description:'Top position as a fraction from 0 to 1.'},width:{type:'NUMBER',description:'Width as a fraction from 0 to 1.'},height:{type:'NUMBER',description:'Height as a fraction from 0 to 1.'},label:{type:'STRING',description:'A short instruction for the user.'}},required:['x','y','width','height','label']}},
             {name:'guardian_risk_score',description:'Return rolling guardian risk score and structured assessment.',parameters:{type:'OBJECT',properties:{score:{type:'INTEGER'},screenUnderstanding:{type:'STRING'},conversationUnderstanding:{type:'STRING'},riskReasoning:{type:'STRING'},decision:{type:'STRING',enum:['LOW RISK','MEDIUM RISK','HIGH RISK']},recommendedAction:{type:'STRING'}},required:['score','screenUnderstanding','conversationUnderstanding','riskReasoning','decision','recommendedAction']}},
             {name:'raise_scam_alert',description:'Immediately warn the parent about a likely scam or urgent safety risk and show a safe next step.',parameters:{type:'OBJECT',properties:{severity:{type:'STRING',enum:['warning','high','critical'],description:'Risk level. Use high or critical for active scam indicators.'},title:{type:'STRING'},summary:{type:'STRING'},evidence:{type:'STRING'},recommendedAction:{type:'STRING'},x:{type:'NUMBER',description:'Optional screen highlight left position from 0 to 1.'},y:{type:'NUMBER',description:'Optional screen highlight top position from 0 to 1.'},width:{type:'NUMBER',description:'Optional screen highlight width from 0 to 1.'},height:{type:'NUMBER',description:'Optional screen highlight height from 0 to 1.'}},required:['severity','title','summary','evidence','recommendedAction']}}
@@ -211,8 +212,9 @@ function AppShell(){
           source.connect(processor);processor.connect(ctx.destination);setListening(true);setStatus('live');statusRef.current='live';setSessionNotice(`Live with ${token.model}. Microphone is on; screen sharing is opt-in.`);
         }catch(error){stopSession();setStatus('demo');setSessionNotice(error instanceof Error?`Live session could not start: ${error.message}`:'Microphone permission was not granted.')}
       };
-      socket.onmessage=(event)=>{try{
-        const packet=JSON.parse(event.data);if(packet.setupComplete)sessionReady.current=true;const content=packet.serverContent;
+      socket.onmessage=async(event)=>{try{
+        const raw=typeof event.data==='string'?event.data:await (event.data as Blob).text();
+        const packet=JSON.parse(raw);if(packet.setupComplete)sessionReady.current=true;const content=packet.serverContent;
         if(content?.inputTranscription?.text)setTranscript(prev=>[...prev,{role:'you',text:content.inputTranscription.text}]);
         if(content?.outputTranscription?.text)setTranscript(prev=>[...prev,{role:'kin',text:content.outputTranscription.text}]);
         const parts=content?.modelTurn?.parts??[];for(const part of parts){if(part.inlineData?.data&&!suppressAudio.current){audioQueue.current.push(part.inlineData.data);playNext()}if(part.text)setTranscript(prev=>[...prev,{role:'kin',text:part.text}])}
@@ -252,7 +254,18 @@ function AppShell(){
       }catch{}};
       socket.onerror=()=>{setSessionNotice('The live connection failed. Ending the session…')};
       sessionExpiryRef.current=window.setTimeout(()=>{if(socketRef.current===socket){stopSession();setSessionNotice('Your secure live session has expired.')}},Math.max(0,Date.parse(token.expiresAt)-Date.now()));
-      socket.onclose=()=>{if(statusRef.current!=='demo'){stopSession();setSessionNotice('Live session ended. You can continue in demo mode.')}};
+      socket.onclose=(event)=>{
+        if(statusRef.current!=='demo'){
+          stopSession();
+          if(event.code===1011||event.reason?.toLowerCase().includes('quota')){
+            setStatus('error');setSessionNotice('Gemini Live session closed due to project quota limits. Demo mode is fully ready.');
+          }else if(event.code!==1000){
+            setStatus('error');setSessionNotice(`Live session ended: ${event.reason||`code ${event.code}`}. Reverting to demo mode.`);
+          }else{
+            setSessionNotice('Live session ended. You can continue in demo mode.');
+          }
+        }
+      };
     }catch(error){setStatus('error');setSessionNotice(error instanceof Error?error.message:'Could not request a live session. You can still try the demos.')}
   };
 
@@ -555,9 +568,6 @@ function AppShell(){
               <span className={`mode-pill ${status==='live'?'is-live':''}`}>
                 <i/>{status==='live'?'LIVE SESSION':status==='connecting'?'CONNECTING':status==='error'?'LIVE UNAVAILABLE':'DEMO MODE'}
               </span>
-              <button aria-label={`Switch to ${settings.theme==='light'?'dark':'light'} theme`} className="theme-toggle" onClick={()=>setSettings(s=>({...s,theme:s.theme==='light'?'dark':'light'}))} data-testid="button-theme-toggle">
-                {settings.theme==='light'?<Moon size={17}/>:<Sun size={17}/>}
-              </button>
             </div>
           </header>
 
@@ -871,7 +881,6 @@ function SettingsPage({settings,setSettings,alerts,setAlerts}:{settings:KinSetti
       <div className="settings-main">
         <section className="setting-group kin-card"><div className="setting-heading"><span className="setting-icon"><Languages size={18}/></span><div><h3>Language</h3><p>Choose the language Kin should speak with you.</p></div></div><label htmlFor="language-select">Preferred language</label><select id="language-select" className="setting-input" value={settings.preferredLanguage} onChange={e=>update('preferredLanguage',e.target.value)} data-testid="select-language">{languages.map(([code,label])=><option key={code} value={code}>{label}</option>)}</select><small className="field-hint">Auto-detect lets Kin follow the language you use in conversation.</small></section>
         <section className="setting-group kin-card"><div className="setting-heading"><span className="setting-icon"><ShieldCheck size={18}/></span><div><h3>Your family</h3><p>Personalize the greeting and choose who an alert can be drafted for.</p></div></div><label htmlFor="family-name">Name to greet you by</label><input id="family-name" className="setting-input" maxLength={40} value={settings.familyName} onChange={e=>update('familyName',e.target.value)} placeholder="Your name" data-testid="input-family-name"/><label htmlFor="family-contact">Family contact <span className="optional-label">OPTIONAL</span></label><input id="family-contact" className="setting-input" value={settings.familyContact} onChange={e=>update('familyContact',e.target.value)} placeholder="Phone number or email" data-testid="input-family-contact"/><small className="field-hint">Used to prefill a message draft and simulated Telegram dispatches.</small></section>
-        <section className="setting-group kin-card"><div className="setting-heading"><span className="setting-icon"><Sun size={18}/></span><div><h3>Appearance</h3><p>Choose the version that feels comfortable on your eyes.</p></div></div><div className="theme-options" role="group" aria-label="Appearance theme"><button className={`theme-option ${settings.theme==='light'?'chosen':''}`} onClick={()=>update('theme','light')} aria-pressed={settings.theme==='light'} data-testid="button-theme-light"><Sun size={20}/><span>Light</span>{settings.theme==='light'&&<Check size={16}/>}</button><button className={`theme-option ${settings.theme==='dark'?'chosen':''}`} onClick={()=>update('theme','dark')} aria-pressed={settings.theme==='dark'} data-testid="button-theme-dark"><MoonStar size={20}/><span>Dark</span>{settings.theme==='dark'&&<Check size={16}/>}</button></div></section>
       </div>
       <aside className="settings-aside"><section className="privacy-settings kin-card"><span className="privacy-symbol"><Shield size={18}/></span><span className="eyebrow">YOUR PRIVACY</span><h3>Nothing happens without you.</h3><ul><li><Check size={15}/> Mic permission is asked only when you start live.</li><li><Check size={15}/> Screen sharing is opt-in and streams only while live.</li><li><Check size={15}/> Saved alerts stay in this browser.</li><li><Check size={15}/> Sharing always needs your confirmation.</li></ul><p>To revoke browser permissions, use your browser’s site settings.</p></section><section className="data-settings kin-card"><h3>Your saved alerts</h3><p>{alerts.length?`${alerts.length} ${alerts.length===1?'alert':'alerts'} stored on this device.`:'No alerts stored on this device.'}</p>{!confirmClear?<button className="clear-button" onClick={()=>setConfirmClear(true)} disabled={!alerts.length} data-testid="button-clear-alerts"><Trash2 size={15}/> Clear alert history</button>:<div className="confirm-clear"><p>Delete all saved alerts from this browser?</p><button className="clear-confirm" onClick={()=>{setAlerts(()=>[]);setConfirmClear(false)}} data-testid="button-confirm-clear">Delete all</button><button onClick={()=>setConfirmClear(false)} className="cancel-clear">Keep alerts</button></div>}</section></aside>
     </div><div className="settings-back"><Link href="/"><ArrowLeft size={15}/> Back to assistant</Link></div>
