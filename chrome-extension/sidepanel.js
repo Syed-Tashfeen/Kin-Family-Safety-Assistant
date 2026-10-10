@@ -544,15 +544,29 @@ micBtn.addEventListener("click", () => {
 });
 
 // Interactive Test Triggers
+let isPointerActive = false;
+
 testPointerBtn.addEventListener("click", async () => {
-  await sendToActiveTab("SHOW_POINTER", {
-    x: 0.5,
-    y: 0.35,
-    label: "Safe verification link · Click here",
-  });
+  if (isPointerActive) {
+    await sendToActiveTab("HIDE_POINTER");
+    isPointerActive = false;
+    testPointerBtn.textContent = "🎯 Test On-Page Visual Pointer";
+    testPointerBtn.classList.remove("active");
+  } else {
+    await sendToActiveTab("SHOW_POINTER", {
+      x: 0.5,
+      y: 0.35,
+      label: "Safe verification link · Click here",
+    });
+    isPointerActive = true;
+    testPointerBtn.textContent = "🎯 Hide Visual Pointer";
+    testPointerBtn.classList.add("active");
+  }
 });
 
-testScamOverlayBtn.addEventListener("click", () => {
+testScamOverlayBtn.addEventListener("click", async () => {
+  // Allow test re-triggering by clearing dismissal lock on active tab
+  await sendToActiveTab("RESET_THREAT_SCAN");
   handleThreatDetected({
     title: "Critical Remote-Access Attack Detected",
     summary: "Suspicious page attempting to solicit remote desktop takeover credentials (482 109 773).",
@@ -563,26 +577,70 @@ testScamOverlayBtn.addEventListener("click", () => {
 });
 
 clearOverlayBtn.addEventListener("click", async () => {
+  // 1. Immediately cancel ongoing speech synthesis warning
+  try {
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+  } catch {}
+
+  // 2. Reset visual pointer state
+  isPointerActive = false;
+  if (testPointerBtn) {
+    testPointerBtn.textContent = "🎯 Test On-Page Visual Pointer";
+    testPointerBtn.classList.remove("active");
+  }
+
+  // 3. Clear overlays and pointer on active tab
   await sendToActiveTab("CLEAR_RED_ALERT");
   await sendToActiveTab("HIDE_POINTER");
+
+  // 4. Reset Guardian Intelligence Analysis card
   updateGuardianAnalysis({
-    score: 12,
-    screen: "Active tab monitored for deceptive forms",
-    voice: "Audio channel listening for social engineering",
-    reason: "No coercive language or remote software",
+    score: 10,
+    screen: "Active tab monitored · Safe",
+    voice: "Audio channel in standby",
+    reason: "Overlays cleared · Threat dismissed by user",
     decision: "LOW RISK",
   });
 });
 
+// Dynamic Lab URL resolver (handles 5173 or 5174 seamlessly)
+async function getLabUrl(relativePath) {
+  try {
+    const tabs = await chrome.tabs.query({});
+    for (const tab of tabs) {
+      if (tab.url?.includes("localhost:5173") || tab.url?.includes("127.0.0.1:5173")) {
+        return `http://localhost:5173${relativePath}`;
+      }
+      if (tab.url?.includes("localhost:5174") || tab.url?.includes("127.0.0.1:5174")) {
+        return `http://localhost:5174${relativePath}`;
+      }
+    }
+  } catch {}
+
+  try {
+    await fetch(`http://localhost:5173${relativePath}`, { method: "HEAD", mode: "no-cors", signal: AbortSignal.timeout(400) });
+    return `http://localhost:5173${relativePath}`;
+  } catch {}
+
+  try {
+    await fetch(`http://localhost:5174${relativePath}`, { method: "HEAD", mode: "no-cors", signal: AbortSignal.timeout(400) });
+    return `http://localhost:5174${relativePath}`;
+  } catch {}
+
+  return `http://localhost:5173${relativePath}`;
+}
+
 // Quick Lab Launchers
-openAnyDeskBtn?.addEventListener("click", () => {
-  const targetPort = "5174";
-  chrome.tabs.create({ url: `http://localhost:${targetPort}/scam-lab/anydesk.html` });
+openAnyDeskBtn?.addEventListener("click", async () => {
+  const url = await getLabUrl("/scam-lab/anydesk.html");
+  chrome.tabs.create({ url });
 });
 
-openBankBtn?.addEventListener("click", () => {
-  const targetPort = "5174";
-  chrome.tabs.create({ url: `http://localhost:${targetPort}/scam-lab/bank.html` });
+openBankBtn?.addEventListener("click", async () => {
+  const url = await getLabUrl("/scam-lab/bank.html");
+  chrome.tabs.create({ url });
 });
 
 // Listen for messages from permission tab or content script
@@ -593,6 +651,24 @@ if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage)
       micStatusSub.textContent = "Click mic to begin live Guardian session";
     } else if (msg?.action === "AUTONOMOUS_THREAT_DETECTED" && msg?.data) {
       handleThreatDetected(msg.data);
+    } else if (msg?.action === "OVERLAY_DISMISSED") {
+      try {
+        if ("speechSynthesis" in window) {
+          window.speechSynthesis.cancel();
+        }
+      } catch {}
+      isPointerActive = false;
+      if (testPointerBtn) {
+        testPointerBtn.textContent = "🎯 Test On-Page Visual Pointer";
+        testPointerBtn.classList.remove("active");
+      }
+      updateGuardianAnalysis({
+        score: 10,
+        screen: "Active tab monitored · Safe",
+        voice: "Audio channel in standby",
+        reason: "Overlays cleared · Threat dismissed by user",
+        decision: "LOW RISK",
+      });
     }
   });
 }

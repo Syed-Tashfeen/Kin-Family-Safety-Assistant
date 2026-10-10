@@ -13,14 +13,14 @@ function scanForScamPatterns() {
   const pageUrl = window.location.href;
 
   // 1. Remote-Access & AnyDesk Patterns
-  const remoteKeywords = /QuickSupport|AnyDesk|TeamViewer|Remote Assistance|unattended access/i;
+  const remoteKeywords = /QuickSupport|AnyDesk|AnySupport|TeamViewer|Remote Assistance|unattended access|remote takeover|connection address|Desktop Agent/i;
   const codeRegex = /\b\d{3}[ -]\d{3}[ -]\d{3}\b/; // e.g. 482 109 773
   const hasRemoteText = remoteKeywords.test(bodyText) || remoteKeywords.test(pageUrl);
   const codeMatch = bodyText.match(codeRegex);
 
   if (hasRemoteText && (codeMatch || bodyText.includes("Your Address") || bodyText.includes("partner connects"))) {
     const codeVal = codeMatch ? codeMatch[0] : "connection code";
-    const targetEl = document.querySelector(".access-code") || document.querySelector("h1, .card, form") || document.body;
+    const targetEl = document.querySelector("#access-code, .access-code") || document.querySelector("h1, .card, form") || document.body;
     const rect = targetEl.getBoundingClientRect();
     const x = Math.max(0.1, Math.min(0.9, (rect.left + rect.width / 2) / (window.innerWidth || 1000)));
     const y = Math.max(0.1, Math.min(0.9, (rect.top + rect.height / 2) / (window.innerHeight || 800)));
@@ -35,6 +35,12 @@ function scanForScamPatterns() {
       score: 95,
       targetRect: { x, y, label: "⚠️ Scam Target: Do not share this 9-digit code" }
     };
+
+    // Render immediately on this page
+    showRedScamOverlay(threat);
+    if (threat.targetRect) {
+      showVisualPointer(threat.targetRect);
+    }
 
     try {
       chrome.runtime.sendMessage({ action: "AUTONOMOUS_THREAT_DETECTED", data: threat });
@@ -61,6 +67,12 @@ function scanForScamPatterns() {
       targetRect: { x, y, label: "⚠️ Phishing Field: Do not enter OTP or PIN" }
     };
 
+    // Render immediately on this page
+    showRedScamOverlay(threat);
+    if (threat.targetRect) {
+      showVisualPointer(threat.targetRect);
+    }
+
     try {
       chrome.runtime.sendMessage({ action: "AUTONOMOUS_THREAT_DETECTED", data: threat });
     } catch {}
@@ -69,8 +81,16 @@ function scanForScamPatterns() {
 }
 
 // Run scanner periodically
-setInterval(scanForScamPatterns, 1500);
-setTimeout(scanForScamPatterns, 500);
+setInterval(scanForScamPatterns, 1000);
+setTimeout(scanForScamPatterns, 300);
+
+let lastUrl = window.location.href;
+setInterval(() => {
+  if (window.location.href !== lastUrl) {
+    lastUrl = window.location.href;
+    alertedThreatKey = null; // URL changed, allow scanning fresh
+  }
+}, 1000);
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "SHOW_POINTER") {
@@ -83,12 +103,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     showRedScamOverlay(message.data);
     sendResponse({ success: true });
   } else if (message.action === "CLEAR_RED_ALERT") {
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
     clearRedScamOverlay();
-    alertedThreatKey = null;
+    alertedThreatKey = "dismissed_by_user";
     sendResponse({ success: true });
-  } else if (message.action === "SCAN_PAGE_NOW") {
+  } else if (message.action === "RESET_THREAT_SCAN") {
     alertedThreatKey = null;
     scanForScamPatterns();
+    sendResponse({ success: true });
+  } else if (message.action === "SCAN_PAGE_NOW") {
+    if (alertedThreatKey !== "dismissed_by_user") {
+      scanForScamPatterns();
+    }
     sendResponse({ success: true });
   }
   return true;
@@ -153,7 +181,14 @@ function showRedScamOverlay({ title, summary, evidence, recommendedAction }) {
   document.body.appendChild(scamOverlayEl);
 
   document.getElementById("kin-dismiss-btn")?.addEventListener("click", () => {
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
     clearRedScamOverlay();
+    alertedThreatKey = "dismissed_by_user";
+    try {
+      chrome.runtime.sendMessage({ action: "OVERLAY_DISMISSED" });
+    } catch {}
   });
 }
 
@@ -162,6 +197,7 @@ function clearRedScamOverlay() {
     scamOverlayEl.remove();
     scamOverlayEl = null;
   }
+  hideVisualPointer();
 }
 
 function escapeHtml(text) {
