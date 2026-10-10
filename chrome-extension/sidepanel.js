@@ -1,5 +1,5 @@
 // Kin Chrome Extension Side Panel Controller (P0 Demo)
-// Live Voice + Tab Vision + Gemini Live WS + Function Calling + Content Script Overlays
+// Live Voice + Tab Vision + Gemini Live WS + Autonomous Threat Triggering + Overlays
 
 const BACKEND_URL = "http://localhost:5000";
 
@@ -13,6 +13,7 @@ let frameTimer = null;
 let audioQueue = [];
 let isAudioPlaying = false;
 let activeSource = null;
+let evaluationTurnCounter = 0;
 
 // DOM Elements
 const micBtn = document.getElementById("mic-toggle-btn");
@@ -31,6 +32,8 @@ const termDecisionPill = document.getElementById("term-decision-pill");
 const testPointerBtn = document.getElementById("test-pointer-btn");
 const testScamOverlayBtn = document.getElementById("test-scam-overlay-btn");
 const clearOverlayBtn = document.getElementById("clear-overlay-btn");
+const openAnyDeskBtn = document.getElementById("open-anydesk-lab-btn");
+const openBankBtn = document.getElementById("open-bank-lab-btn");
 
 // -------------------------------------------------------------
 // Audio Chime Synthesizer
@@ -56,8 +59,12 @@ function playAlertChime() {
 // Content Script Messaging Helpers
 // -------------------------------------------------------------
 async function getActiveTab() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  return tab;
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    return tab;
+  } catch {
+    return null;
+  }
 }
 
 async function sendToActiveTab(action, data = {}) {
@@ -67,20 +74,22 @@ async function sendToActiveTab(action, data = {}) {
       await chrome.tabs.sendMessage(tab.id, { action, data });
     }
   } catch (err) {
-    console.warn("Could not message content script on active tab:", err);
+    // Normal when active tab is a chrome:// internal page or restricted
   }
 }
 
 // -------------------------------------------------------------
 // UI State Updates
 // -------------------------------------------------------------
-function setLiveState(live) {
+function setLiveState(live, hasRealMic = true) {
   isLive = live;
   if (live) {
     micBtn.classList.add("active");
     micBtn.textContent = "🛑";
-    micStatusLabel.textContent = "Live Session Active";
-    micStatusSub.textContent = "Streaming mic & active tab frames (~1 FPS)";
+    micStatusLabel.textContent = "Live Guardian Active";
+    micStatusSub.textContent = hasRealMic
+      ? "Streaming voice & active tab frames (~1 FPS)"
+      : "Active tab vision & AI monitoring running";
     liveBadge.classList.add("live");
     badgeText.textContent = "WATCHING LIVE";
   } else {
@@ -112,12 +121,66 @@ function updateGuardianAnalysis({ score, screen, voice, reason, decision }) {
 }
 
 // -------------------------------------------------------------
+// Autonomous Threat Handler (Triggered via DOM or Gemini Vision)
+// -------------------------------------------------------------
+function handleThreatDetected(threat) {
+  playAlertChime();
+
+  // Voice announcement
+  try {
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(
+        "Warning: Kin detected an active remote-access scam pattern on this screen. Do not share your connection code."
+      );
+      utterance.rate = 1.0;
+      window.speechSynthesis.speak(utterance);
+    }
+  } catch {}
+
+  // 1. Show Red Scam Overlay on page
+  sendToActiveTab("SHOW_RED_ALERT", {
+    title: threat.title || "Critical Remote-Access Attack Detected",
+    summary: threat.summary || "Suspicious page attempting to solicit remote desktop takeover credentials.",
+    evidence: threat.evidence || "Remote access takeover pattern observed on screen.",
+    recommendedAction: threat.recommendedAction || "Do not read the connection code. Disconnect immediately.",
+  });
+
+  // 2. Show visual pointer at the threat element
+  if (threat.targetRect) {
+    sendToActiveTab("SHOW_POINTER", threat.targetRect);
+  }
+
+  // 3. Update Guardian Analysis Card in sidepanel
+  updateGuardianAnalysis({
+    score: threat.score || 95,
+    screen: threat.title || "AnyDesk QuickSupport Remote Takeover Form",
+    voice: "Active threat pattern detected on page",
+    reason: threat.evidence || "Severe social engineering & tech support scam vector",
+    decision: "HIGH RISK",
+  });
+
+  // 4. Dispatch Telegram Relay to family group
+  fetch(`${BACKEND_URL}/api/kin/telegram-alert`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      title: threat.title || "Remote-Access Scam Triggered",
+      summary: threat.summary || "Parent was prompted to share connection code with an unexpected caller.",
+      evidence: threat.evidence || "Visual recognition of connection address on page.",
+      screenshotPreview: true,
+    }),
+  }).catch(() => {});
+}
+
+// -------------------------------------------------------------
 // Tab Frame Capturer (~1 FPS)
 // -------------------------------------------------------------
 function captureAndSendTabFrame() {
-  if (!isLive || !socket || socket.readyState !== WebSocket.OPEN) return;
+  if (!isLive) return;
 
   chrome.tabs.captureVisibleTab(null, { format: "jpeg", quality: 50 }, (dataUrl) => {
+    // Check runtime error cleanly (e.g. on chrome:// pages) to avoid unhandled exceptions
     if (chrome.runtime.lastError || !dataUrl) return;
 
     const base64Data = dataUrl.split(",")[1];
@@ -132,8 +195,23 @@ function captureAndSendTabFrame() {
           },
         })
       );
+
+      evaluationTurnCounter++;
+      // Every 4 seconds, prompt Gemini vision to evaluate the scene
+      if (evaluationTurnCounter % 4 === 0) {
+        socket.send(
+          JSON.stringify({
+            realtimeInput: {
+              text: "Guardian evaluation turn: Examine the visible tab frame carefully. If any remote-access code (AnyDesk, QuickSupport), scam OTP fields, or deceptive threats are present, immediately call raise_scam_alert and guardian_risk_score.",
+            },
+          })
+        );
+      }
     }
   });
+
+  // Instruct active tab content script to run on-page pattern detection
+  sendToActiveTab("SCAN_PAGE_NOW");
 }
 
 // -------------------------------------------------------------
@@ -141,26 +219,31 @@ function captureAndSendTabFrame() {
 // -------------------------------------------------------------
 async function startLiveSession() {
   try {
-    micStatusLabel.textContent = "Checking microphone access…";
+    micStatusLabel.textContent = "Connecting Guardian Live…";
 
-    // 1. Immediately request Microphone stream while user click gesture is active
+    // 1. Resilient Microphone Pipeline:
+    // Try real microphone first; if restricted in side panel, fall back to clean Web Audio stream
+    let hasRealMic = false;
     try {
       audioStream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
       });
+      hasRealMic = true;
     } catch (micErr) {
-      if (micErr.name === "NotAllowedError" || (micErr.message && micErr.message.toLowerCase().includes("dismissed"))) {
-        // In Chrome side panels, Chrome often suppresses Omnibox permission prompts.
-        // Opening permission.html in a full tab allows the user to click Allow once.
-        if (typeof chrome !== "undefined" && chrome.tabs && chrome.runtime) {
-          micStatusLabel.textContent = "Action needed: allow mic in tab";
-          chrome.tabs.create({ url: chrome.runtime.getURL("permission.html") });
-          alert("Chrome requires microphone permission to be granted in a regular tab. We opened a permission tab for you — please click 'Allow Microphone Access' there, then click the mic button here again.");
-          setLiveState(false);
-          return;
-        }
+      console.warn("Direct microphone unavailable in sidepanel, using Web Audio stream:", micErr);
+      try {
+        const fallbackCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const dest = fallbackCtx.createMediaStreamDestination();
+        const osc = fallbackCtx.createOscillator();
+        const gain = fallbackCtx.createGain();
+        gain.gain.value = 0.0;
+        osc.connect(gain);
+        gain.connect(dest);
+        osc.start();
+        audioStream = dest.stream;
+      } catch (e) {
+        console.warn("Fallback audio stream error:", e);
       }
-      throw micErr;
     }
 
     micStatusLabel.textContent = "Requesting secure token…";
@@ -253,53 +336,57 @@ async function startLiveSession() {
         })
       );
 
-      // 4. Start Microphone Audio Capture using pre-acquired audioStream (16kHz PCM)
-      audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      await audioContext.resume();
+      // Start Audio Capture pipeline (if audioStream is active)
+      if (audioStream) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        await audioContext.resume();
 
-      sourceNode = audioContext.createMediaStreamSource(audioStream);
-      processorNode = audioContext.createScriptProcessor(4096, 1, 1);
+        sourceNode = audioContext.createMediaStreamSource(audioStream);
+        processorNode = audioContext.createScriptProcessor(4096, 1, 1);
 
-      processorNode.onaudioprocess = (e) => {
-        if (!socket || socket.readyState !== WebSocket.OPEN) return;
-        const input = e.inputBuffer.getChannelData(0);
-        const ratio = audioContext.sampleRate / 16000;
-        const length = Math.floor(input.length / ratio);
-        const pcm = new Int16Array(length);
+        processorNode.onaudioprocess = (e) => {
+          if (!socket || socket.readyState !== WebSocket.OPEN) return;
+          const input = e.inputBuffer.getChannelData(0);
+          const ratio = audioContext.sampleRate / 16000;
+          const length = Math.floor(input.length / ratio);
+          const pcm = new Int16Array(length);
 
-        for (let i = 0; i < length; i++) {
-          const sample = input[Math.floor(i * ratio)];
-          pcm[i] = Math.max(-1, Math.min(1, sample)) * 32767;
-        }
+          for (let i = 0; i < length; i++) {
+            const sample = input[Math.floor(i * ratio)];
+            pcm[i] = Math.max(-1, Math.min(1, sample)) * 32767;
+          }
 
-        let binary = "";
-        new Uint8Array(pcm.buffer).forEach((byte) => (binary += String.fromCharCode(byte)));
+          let binary = "";
+          new Uint8Array(pcm.buffer).forEach((byte) => (binary += String.fromCharCode(byte)));
 
-        socket.send(
-          JSON.stringify({
-            realtimeInput: {
-              audio: {
-                mimeType: "audio/pcm;rate=16000",
-                data: btoa(binary),
+          socket.send(
+            JSON.stringify({
+              realtimeInput: {
+                audio: {
+                  mimeType: "audio/pcm;rate=16000",
+                  data: btoa(binary),
+                },
               },
-            },
-          })
-        );
-      };
+            })
+          );
+        };
 
-      sourceNode.connect(processorNode);
-      processorNode.connect(audioContext.destination);
+        sourceNode.connect(processorNode);
+        processorNode.connect(audioContext.destination);
+      }
 
-      // 4. Start Tab Frame Capture Loop (~1 FPS)
+      // Start Tab Frame Capture Loop (~1 FPS)
+      evaluationTurnCounter = 0;
       frameTimer = setInterval(captureAndSendTabFrame, 1000);
       captureAndSendTabFrame();
 
-      setLiveState(true);
+      setLiveState(true, hasRealMic);
     };
 
-    socket.onmessage = (event) => {
+    socket.onmessage = async (event) => {
       try {
-        const packet = JSON.parse(event.data);
+        const rawText = typeof event.data === "string" ? event.data : await event.data.text();
+        const packet = JSON.parse(rawText);
         const parts = packet.serverContent?.modelTurn?.parts || [];
 
         // Synthesized audio playback
@@ -352,33 +439,13 @@ async function startLiveSession() {
           }
 
           if (name === "raise_scam_alert") {
-            playAlertChime();
-            // Trigger on-page red overlay
-            sendToActiveTab("SHOW_RED_ALERT", {
+            handleThreatDetected({
               title: args.title,
               summary: args.summary,
               evidence: args.evidence,
               recommendedAction: args.recommendedAction,
-            });
-            // Update Guardian card
-            updateGuardianAnalysis({
               score: 95,
-              screen: args.title,
-              voice: "Coercive instruction identified",
-              reason: args.evidence,
-              decision: "HIGH RISK",
             });
-            // Dispatch Telegram Alert
-            fetch(`${BACKEND_URL}/api/kin/telegram-alert`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                title: args.title,
-                summary: args.summary,
-                evidence: args.evidence,
-                screenshotPreview: true,
-              }),
-            }).catch(() => {});
 
             socket.send(
               JSON.stringify({
@@ -485,36 +552,14 @@ testPointerBtn.addEventListener("click", async () => {
   });
 });
 
-testScamOverlayBtn.addEventListener("click", async () => {
-  playAlertChime();
-  // 1. On-page Red Scam Overlay
-  await sendToActiveTab("SHOW_RED_ALERT", {
+testScamOverlayBtn.addEventListener("click", () => {
+  handleThreatDetected({
     title: "Critical Remote-Access Attack Detected",
     summary: "Suspicious page attempting to solicit remote desktop takeover credentials (482 109 773).",
     evidence: "QuickSupport AnyDesk takeover address observed on screen.",
     recommendedAction: "Do not read the connection code. Disconnect immediately.",
-  });
-
-  // 2. Update Guardian Analysis Card
-  updateGuardianAnalysis({
     score: 95,
-    screen: "AnyDesk QuickSupport Remote Takeover Form",
-    voice: "Caller asked for 9-digit connection address",
-    reason: "Severe social engineering & tech support scam vector",
-    decision: "HIGH RISK",
   });
-
-  // 3. Dispatch Telegram Relay
-  fetch(`${BACKEND_URL}/api/kin/telegram-alert`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      title: "Remote-Access Scam Triggered (AnyDesk)",
-      summary: "Parent was prompted to share remote connection code with an unexpected caller.",
-      evidence: "Visual recognition of connection address 482 109 773.",
-      screenshotPreview: true,
-    }),
-  }).catch(() => {});
 });
 
 clearOverlayBtn.addEventListener("click", async () => {
@@ -529,13 +574,25 @@ clearOverlayBtn.addEventListener("click", async () => {
   });
 });
 
-// Listen for permission granted from permission tab
+// Quick Lab Launchers
+openAnyDeskBtn?.addEventListener("click", () => {
+  const targetPort = "5174";
+  chrome.tabs.create({ url: `http://localhost:${targetPort}/scam-lab/anydesk.html` });
+});
+
+openBankBtn?.addEventListener("click", () => {
+  const targetPort = "5174";
+  chrome.tabs.create({ url: `http://localhost:${targetPort}/scam-lab/bank.html` });
+});
+
+// Listen for messages from permission tab or content script
 if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg?.action === "MIC_PERMISSION_GRANTED") {
       micStatusLabel.textContent = "Microphone permitted! Ready to start.";
       micStatusSub.textContent = "Click mic to begin live Guardian session";
+    } else if (msg?.action === "AUTONOMOUS_THREAT_DETECTED" && msg?.data) {
+      handleThreatDetected(msg.data);
     }
   });
 }
-

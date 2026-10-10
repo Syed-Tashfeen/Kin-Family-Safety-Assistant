@@ -31,11 +31,18 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-app.listen(port, (err) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
-    process.exit(1);
-  }
-
+const server = app.listen(port, () => {
   logger.info({ port }, "Server listening");
 });
+
+server.on("error", (err: any) => {
+  if (err?.code === "EADDRINUSE") {
+    logger.error(
+      `Port ${port} is already in use. Run 'pnpm run clean:ports' in PowerShell to clear lingering processes.`
+    );
+  } else {
+    logger.error({ err }, "Error listening on port");
+  }
+  process.exit(1);
+});
+

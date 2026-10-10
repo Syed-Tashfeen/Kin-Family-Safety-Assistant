@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
+    "clean:ports": "powershell -Command \"Get-NetTCPConnection -LocalPort 5000,5173,5174,5175 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }; exit 0\"",
     "dev": "pnpm --filter @workspace/kin-family-safety run dev",
     "dev:all": "pnpm -r --parallel --filter @workspace/api-server --filter @workspace/kin-family-safety run dev",
     "dev:api": "pnpm --filter @workspace/api-server run dev",

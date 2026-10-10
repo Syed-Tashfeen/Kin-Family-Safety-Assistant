@@ -171,6 +171,15 @@ function AppShell(){
     outputSourceRef.current?.stop();outputSourceRef.current=null;audioQueue.current=[];isPlaying.current=false;suppressAudio.current=false;statusRef.current='demo';
     contextRef.current?.close().catch(()=>{});contextRef.current=null;
     screenImageRef.current='';setScreenImage('');setHighlight(null);setListening(false);setSharing(false);setStatus('demo');setSessionNotice('Live session ended. Your microphone and shared screen are off.');
+    setGuardianAnalysis({
+      score: 10,
+      screenUnderstanding: "Screen sharing disconnected · Device secured",
+      conversationUnderstanding: "Session completed calmly",
+      riskReasoning: "Live connection closed. No active software or caller sharing.",
+      decision: "LOW RISK",
+      recommendedAction: "You are safe. Kin continues watching in background.",
+      updatedAt: new Date().toLocaleTimeString(),
+    });
   },[]);
 
   useEffect(()=>()=>{socketRef.current?.close();audioStream.current?.getTracks().forEach(t=>t.stop());displayStream.current?.getTracks().forEach(t=>t.stop());if(screenTimer.current)clearInterval(screenTimer.current);contextRef.current?.close().catch(()=>{})},[]);
@@ -274,7 +283,24 @@ function AppShell(){
     try{
       if(!navigator.mediaDevices?.getDisplayMedia)throw new Error('Screen capture is not supported in this browser.');
       const stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:1},audio:false});displayStream.current=stream;setSharing(true);setSessionNotice('Screen shared. ~1 FPS sent only while this session runs.');
-      stream.getVideoTracks()[0].addEventListener('ended',()=>{displayStream.current=null;if(screenTimer.current)window.clearInterval(screenTimer.current);setSharing(false);setScreenImage('');screenImageRef.current='';setHighlight(null);setSessionNotice('Screen sharing stopped.')});
+      stream.getVideoTracks()[0].addEventListener('ended',()=>{
+        displayStream.current=null;
+        if(screenTimer.current)window.clearInterval(screenTimer.current);
+        setSharing(false);
+        setScreenImage('');
+        screenImageRef.current='';
+        setHighlight(null);
+        setSessionNotice('Screen sharing stopped.');
+        setGuardianAnalysis({
+          score: 12,
+          screenUnderstanding: "Screen sharing ended · Disconnected from remote review",
+          conversationUnderstanding: "Screen share closed",
+          riskReasoning: "Screen feed stopped. Potential remote software is no longer visible.",
+          decision: "LOW RISK",
+          recommendedAction: "Device is secure. You can continue browsing calmly.",
+          updatedAt: new Date().toLocaleTimeString(),
+        });
+      });
       const video=document.querySelector<HTMLVideoElement>('#screen-source');if(video){video.srcObject=stream;await video.play().catch(()=>{})}
       captureFrame();screenTimer.current=window.setInterval(captureFrame,1000);
     }catch(error){setSessionNotice(error instanceof Error?`${error.message} No screen shared.`:'Screen permission was not granted.')}
@@ -830,12 +856,32 @@ function AppShell(){
                             </div>
                           </div>
                           {guardianAnalysis.decision === 'HIGH RISK' && (
-                            <button 
-                              onClick={() => setShowTelegramDrawer(true)}
-                              style={{ background: '#0284c7', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', padding: '4px 8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                            >
-                              <Send size={12} /> View Telegram
-                            </button>
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                              <button 
+                                onClick={() => {
+                                  setGuardianAnalysis({
+                                    score: 10,
+                                    screenUnderstanding: "Threat resolved · Screen & environment safe",
+                                    conversationUnderstanding: "Issue concluded calmly",
+                                    riskReasoning: "Incident dismissed by user. Device is secure.",
+                                    decision: "LOW RISK",
+                                    recommendedAction: "Continue navigating calmly; Kin is watching in background.",
+                                    updatedAt: new Date().toLocaleTimeString(),
+                                  });
+                                  setHighlight(null);
+                                  setCurrentAlert(null);
+                                }}
+                                style={{ background: '#334155', color: '#cbd5e1', border: '1px solid #475569', borderRadius: '4px', fontSize: '11px', padding: '4px 8px', fontWeight: 600, cursor: 'pointer' }}
+                              >
+                                ✓ Resolve &amp; Clear
+                              </button>
+                              <button 
+                                onClick={() => setShowTelegramDrawer(true)}
+                                style={{ background: '#0284c7', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', padding: '4px 8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                              >
+                                <Send size={12} /> View Telegram
+                              </button>
+                            </div>
                           )}
                         </div>
 
