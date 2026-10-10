@@ -8,7 +8,7 @@ import { db, sessionsTable, alertsTable } from "@workspace/db";
 const router: IRouter = Router();
 const LIVE_MODEL = process.env.GEMINI_LIVE_MODEL || "gemini-3.8-live";
 const TOKEN_WINDOW_MS = 10 * 60 * 1000;
-const TOKEN_REQUEST_LIMIT = 8;
+const TOKEN_REQUEST_LIMIT = 1000;
 const tokenRequests = new Map<string, number[]>();
 
 function getGeminiApiKeys(): string[] {
@@ -430,4 +430,115 @@ router.post("/kin/live-token", async (req, res) => {
   });
 });
 
+// -------------------------------------------------------------
+// REST Endpoint for Direct Text Chat using Gemini
+// -------------------------------------------------------------
+router.post("/kin/chat", async (req, res) => {
+  const { message, history, preferredLanguage } = req.body;
+  if (!message || typeof message !== "string") {
+    return res.status(400).json({ error: "Message is required" });
+  }
+
+  const apiKeys = getGeminiApiKeys();
+  if (apiKeys.length === 0) {
+    return res.status(503).json({ error: "Gemini API key is not configured" });
+  }
+
+  const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
+  if (Array.isArray(history)) {
+    for (const item of history.slice(-6)) {
+      const role = (item.role === "you" || item.role === "user") ? "user" : "model";
+      if (item.text && typeof item.text === "string") {
+        contents.push({
+          role,
+          parts: [{ text: item.text }],
+        });
+      }
+    }
+  }
+  contents.push({
+    role: "user",
+    parts: [{ text: message }],
+  });
+
+  const languagePrompt =
+    preferredLanguage && preferredLanguage !== "auto"
+      ? `Respond in language code ${preferredLanguage}.`
+      : "Detect the parent's language and reply in the same natural language.";
+
+  const systemPrompt = [
+    "You are Kin, a patient, warm, and protective technology guide for parents and families.",
+    "Explain one simple step at a time, in clear, plain language.",
+    languagePrompt,
+    "Help the parent feel confident, calm, and safe.",
+    "Carefully evaluate safety and scam risks:",
+    "- If someone asks them to install remote-access software (like AnyDesk, TeamViewer, QuickSupport), share an OTP, PIN, password, wire money, or keep a call secret, classify as HIGH RISK with a high score (80-99) and warn them urgently with clear next steps.",
+    "- If they ask a normal question, general assistance, or standard inquiry, classify as LOW RISK (0-20).",
+    "Always return valid JSON according to the schema.",
+  ].join(" ");
+
+  const startIndex = activeKeyIndex;
+  let lastErrorMessage = "Unknown error";
+
+  for (let attempt = 0; attempt < apiKeys.length; attempt++) {
+    const keyIndex = (startIndex + attempt) % apiKeys.length;
+    const apiKey = apiKeys[keyIndex];
+
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents,
+            systemInstruction: {
+              parts: [{ text: systemPrompt }],
+            },
+            generationConfig: {
+              responseMimeType: "application/json",
+              responseSchema: {
+                type: "OBJECT",
+                properties: {
+                  reply: { type: "STRING", description: "Warm, plain-language response to the parent." },
+                  riskScore: { type: "INTEGER", description: "Calculated risk score from 0 to 100." },
+                  decision: { type: "STRING", enum: ["LOW RISK", "MEDIUM RISK", "HIGH RISK"] },
+                  screenUnderstanding: { type: "STRING", description: "Screen or context understanding." },
+                  conversationUnderstanding: { type: "STRING", description: "Conversation summary." },
+                  riskReasoning: { type: "STRING", description: "Clear risk reasoning." },
+                  recommendedAction: { type: "STRING", description: "One safe next step for the parent." },
+                },
+                required: ["reply", "riskScore", "decision", "riskReasoning", "recommendedAction"],
+              },
+            },
+          }),
+          signal: AbortSignal.timeout(15_000),
+        },
+      );
+
+      if (!response.ok) {
+        const errJson = (await response.json().catch(() => ({}))) as any;
+        lastErrorMessage = errJson.error?.message || `HTTP ${response.status}`;
+        continue;
+      }
+
+      const data = (await response.json()) as any;
+      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!rawText) {
+        lastErrorMessage = "Empty response from Gemini";
+        continue;
+      }
+
+      const parsed = JSON.parse(rawText);
+      activeKeyIndex = (keyIndex + 1) % apiKeys.length;
+      return res.json(parsed);
+    } catch (err: any) {
+      lastErrorMessage = err instanceof Error ? err.message : "Network error";
+    }
+  }
+
+  return res.status(503).json({ error: `Could not generate AI response: ${lastErrorMessage}` });
+});
+
 export default router;
+

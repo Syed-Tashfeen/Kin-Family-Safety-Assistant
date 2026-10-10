@@ -528,3 +528,14 @@ clearOverlayBtn.addEventListener("click", async () => {
     decision: "LOW RISK",
   });
 });
+
+// Listen for permission granted from permission tab
+if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg?.action === "MIC_PERMISSION_GRANTED") {
+      micStatusLabel.textContent = "Microphone permitted! Ready to start.";
+      micStatusSub.textContent = "Click mic to begin live Guardian session";
+    }
+  });
+}
+

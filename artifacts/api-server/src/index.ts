@@ -3,6 +3,8 @@ import path from "node:path";
 
 // Automatically load environment files if present
 const possibleEnvPaths = [
+  path.resolve(process.cwd(), "artifacts/api-server/.env"),
+  path.resolve(process.cwd(), "artifacts/api-server/api.env"),
   path.resolve(process.cwd(), "api.env"),
   path.resolve(process.cwd(), ".env"),
   path.resolve(import.meta.dirname, "../api.env"),

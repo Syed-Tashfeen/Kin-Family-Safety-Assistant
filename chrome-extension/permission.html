@@ -34,7 +34,7 @@
       border: 1px solid var(--border);
       border-radius: 16px;
       padding: 36px 32px;
-      max-width: 460px;
+      max-width: 520px;
       text-align: center;
       box-shadow: 0 20px 40px rgba(0,0,0,0.5);
     }
@@ -51,29 +51,64 @@
       margin-bottom: 20px;
     }
     h1 {
-      font-size: 22px;
+      font-size: 24px;
       font-weight: 800;
       margin-bottom: 12px;
     }
-    p {
+    .desc {
       color: var(--sub);
       font-size: 14px;
       line-height: 1.6;
       margin-bottom: 24px;
+    }
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      text-align: left;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+      margin-bottom: 24px;
+    }
+    .step-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      font-size: 14px;
+      color: #e2e8f0;
+      line-height: 1.5;
+    }
+    .step-num {
+      background: var(--primary);
+      color: #fff;
+      font-weight: 800;
+      font-size: 12px;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
     }
     .btn {
       background: var(--primary);
       color: #fff;
       border: none;
       border-radius: 12px;
-      padding: 14px 28px;
-      font-size: 15px;
+      padding: 16px 32px;
+      font-size: 16px;
       font-weight: 700;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       gap: 10px;
       transition: all 0.2s;
+      width: 100%;
+      justify-content: center;
     }
     .btn:hover {
       background: #ea580c;
@@ -82,9 +117,10 @@
     .status-msg {
       margin-top: 20px;
       font-size: 14px;
-      padding: 12px;
-      border-radius: 8px;
+      padding: 14px;
+      border-radius: 10px;
       display: none;
+      line-height: 1.5;
     }
     .status-msg.success {
       display: block;
@@ -98,62 +134,93 @@
       color: #f87171;
       border: 1px solid rgba(239, 68, 68, 0.3);
     }
+    .address-bar-tip {
+      margin-top: 20px;
+      padding-top: 18px;
+      border-top: 1px dashed var(--border);
+      font-size: 13px;
+      color: var(--sub);
+      text-align: left;
+    }
+    .address-bar-tip strong {
+      color: #f1f5f9;
+    }
   </style>
 </head>
 <body>
   <div class="card">
-    <div class="badge">🎙️ KIN GUARDIAN LIVE VOICE</div>
-    <h1>Allow Microphone Permission</h1>
-    <p>
-      Chrome requires you to grant microphone permissions in a regular browser tab once. 
-      Click the button below and select <strong>"Allow"</strong> when prompted by Chrome.
+    <div class="badge">🎙️ KIN GUARDIAN VOICE SETUP</div>
+    <h1>Enable Microphone Access</h1>
+    <p class="desc">
+      To stream real-time voice guidance safely, Chrome needs you to enable microphone access for the Kin extension.
     </p>
+
+    <div class="steps">
+      <div class="step-item">
+        <span class="step-num">1</span>
+        <div>Click the orange <strong>"Allow Microphone Access"</strong> button below.</div>
+      </div>
+      <div class="step-item">
+        <span class="step-num">2</span>
+        <div>When Chrome displays its native popup near the address bar, click <strong>"Allow"</strong>.</div>
+      </div>
+    </div>
 
     <button id="grant-btn" class="btn">
       🎙️ Allow Microphone Access
     </button>
 
     <div id="status" class="status-msg"></div>
+
+    <div class="address-bar-tip">
+      💡 <strong>No popup appearing?</strong> Look at the address bar above: click the <strong>tune / sliders icon (🎛️)</strong> directly to the left of the URL and switch <strong>Microphone</strong> to <strong>Allow</strong>.
+    </div>
   </div>
 
   <script>
     const btn = document.getElementById("grant-btn");
     const statusDiv = document.getElementById("status");
 
+    async function checkExistingPermission() {
+      if (navigator.permissions && navigator.permissions.query) {
+        try {
+          const res = await navigator.permissions.query({ name: 'microphone' });
+          if (res.state === 'granted') {
+            onGranted();
+          }
+        } catch {}
+      }
+    }
+
+    function onGranted() {
+      statusDiv.className = "status-msg success";
+      statusDiv.innerHTML = "✅ <strong>Microphone access is enabled!</strong><br><br>You can close this tab and click the microphone in the Kin side panel.";
+      btn.style.display = "none";
+      try {
+        if (chrome && chrome.runtime && chrome.runtime.sendMessage) {
+          chrome.runtime.sendMessage({ action: "MIC_PERMISSION_GRANTED" });
+        }
+      } catch {}
+    }
+
     async function requestPermission() {
       btn.disabled = true;
-      btn.textContent = "Requesting permission…";
+      btn.textContent = "Waiting for Chrome prompt…";
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        // Release stream immediately
         stream.getTracks().forEach(t => t.stop());
-
-        statusDiv.className = "status-msg success";
-        statusDiv.innerHTML = "✅ <strong>Microphone access granted!</strong><br>You can now close this tab and click the microphone in the Kin side panel.";
-        btn.style.display = "none";
+        onGranted();
       } catch (err) {
         btn.disabled = false;
         btn.textContent = "🎙️ Try Again";
         statusDiv.className = "status-msg error";
-        statusDiv.innerHTML = "⚠️ Permission was not granted (" + err.message + ").<br>Please click the lock/settings icon in your address bar and set Microphone to <strong>Allow</strong>.";
+        statusDiv.innerHTML = "⚠️ <strong>Permission prompt was dismissed or blocked.</strong><br><br>" +
+          "<strong>Fix:</strong> Click the <strong>tune / sliders icon (🎛️)</strong> on the far left of your address bar (right next to <em>chrome-extension://...</em>) and toggle <strong>Microphone</strong> to <strong>Allow</strong>.";
       }
     }
 
     btn.addEventListener("click", requestPermission);
-
-    // Auto-trigger on load if user opened with action
-    window.addEventListener("DOMContentLoaded", () => {
-      // Check if already granted
-      if (navigator.permissions && navigator.permissions.query) {
-        navigator.permissions.query({ name: 'microphone' }).then(res => {
-          if (res.state === 'granted') {
-            statusDiv.className = "status-msg success";
-            statusDiv.innerHTML = "✅ <strong>Microphone is already allowed!</strong><br>You can close this tab and use Kin in your side panel.";
-            btn.style.display = "none";
-          }
-        }).catch(() => {});
-      }
-    });
+    window.addEventListener("DOMContentLoaded", checkExistingPermission);
   </script>
 </body>
 </html>

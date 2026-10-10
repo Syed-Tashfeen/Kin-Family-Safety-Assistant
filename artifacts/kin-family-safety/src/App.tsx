@@ -85,6 +85,7 @@ function AppShell(){
   });
   const [telegramNotification, setTelegramNotification] = useState<TelegramNotification|null>(null);
   const [showTelegramDrawer, setShowTelegramDrawer] = useState(false);
+  const [isAiThinking, setIsAiThinking] = useState(false);
 
   const mutation=useCreateKinLiveToken();
   const socketRef=useRef<WebSocket|null>(null), audioStream=useRef<MediaStream|null>(null), displayStream=useRef<MediaStream|null>(null), sessionExpiryRef=useRef<number|undefined>(undefined);
@@ -279,7 +280,67 @@ function AppShell(){
     }catch(error){setSessionNotice(error instanceof Error?`${error.message} No screen shared.`:'Screen permission was not granted.')}
   };
 
-  const sendText=(text=draft)=>{const trimmed=text.trim();if(!trimmed)return;suppressAudio.current=false;setTranscript(prev=>[...prev,{role:'you',text:trimmed}]);if(socketRef.current?.readyState===WebSocket.OPEN)socketRef.current.send(JSON.stringify({realtimeInput:{text:trimmed}}));else demoReply(trimmed);setDraft('')};
+  const sendText = async (text = draft) => {
+    const trimmed = text.trim();
+    if (!trimmed || isAiThinking) return;
+    suppressAudio.current = false;
+    setTranscript(prev => [...prev, { role: 'you', text: trimmed }]);
+    setDraft('');
+
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({ realtimeInput: { text: trimmed } }));
+      return;
+    }
+
+    // Call real Gemini API endpoint on the backend
+    setIsAiThinking(true);
+    try {
+      const res = await fetch('/api/kin/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: trimmed,
+          history: transcript.slice(-6),
+          preferredLanguage: settings.preferredLanguage,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Server returned ${res.status}`);
+      }
+
+      const data = await res.json();
+      const reply = data.reply || "I am here with you. Let's take it one step at a time.";
+      setTranscript(prev => [...prev, { role: 'kin', text: reply }]);
+
+      if (typeof data.riskScore === 'number') {
+        const isHigh = data.decision === 'HIGH RISK' || data.riskScore >= 70;
+        setGuardianAnalysis({
+          score: data.riskScore,
+          screenUnderstanding: data.screenUnderstanding || "Text query reviewed",
+          conversationUnderstanding: data.conversationUnderstanding || `User: "${trimmed}"`,
+          riskReasoning: data.riskReasoning || (isHigh ? "Potential risk detected" : "Safe communication"),
+          decision: data.decision || (isHigh ? 'HIGH RISK' : 'LOW RISK'),
+          recommendedAction: data.recommendedAction || "Proceed safely",
+          updatedAt: new Date().toLocaleTimeString(),
+        });
+
+        if (isHigh) {
+          triggerTelegramAlert({
+            title: "Threat Detected (Text Query)",
+            summary: data.riskReasoning || "Urgent safety alert triggered from text inquiry.",
+            evidence: `User asked: "${trimmed}"`,
+            screenshot: screenImageRef.current,
+          });
+        }
+      }
+    } catch {
+      // Fallback to local demo reply if backend API cannot be reached
+      demoReply(trimmed);
+    } finally {
+      setIsAiThinking(false);
+    }
+  };
 
   const demoReply=(query:string)=>{
     const lower=query.toLowerCase();
@@ -595,11 +656,11 @@ function AppShell(){
 
                     {/* Conversation Area */}
                     <section className="conversation-panel kin-card" aria-label="Kin conversation">
-                      {transcript.length===0?<div className="conversation-empty"><span className="empty-icon"><AudioLines size={22}/></span><p><strong>Your conversation starts here.</strong><br/>Try a quick scenario, or ask Kin a question below.</p></div>:<div className="transcript" aria-live="polite">{transcript.map((line,index)=><div className={`turn ${line.role}`} key={`${index}-${line.role}`}><span className="turn-label">{line.role==='you'?'YOU':'KIN'}</span><p>{line.text}</p></div>)}</div>}
+                      {transcript.length===0?<div className="conversation-empty"><span className="empty-icon"><AudioLines size={22}/></span><p><strong>Your conversation starts here.</strong><br/>Try a quick scenario, or ask Kin a question below.</p></div>:<div className="transcript" aria-live="polite">{transcript.map((line,index)=><div className={`turn ${line.role}`} key={`${index}-${line.role}`}><span className="turn-label">{line.role==='you'?'YOU':'KIN'}</span><p>{line.text}</p></div>)}{isAiThinking&&<div className="turn kin" style={{ opacity: 0.8 }}><span className="turn-label">KIN</span><p><em>Thinking with Gemini…</em></p></div>}</div>}
                       <form className="message-form" onSubmit={e=>{e.preventDefault();sendText()}}>
                         <label htmlFor="message-input" className="sr-only">Ask Kin a question</label>
-                        <input id="message-input" value={draft} onChange={e=>setDraft(e.target.value)} placeholder="Ask Kin anything… (e.g. 'Someone wants me to install AnyDesk')" data-testid="input-message"/>
-                        <button type="submit" className="send-button" aria-label="Send message" data-testid="button-send-message"><Send size={17}/></button>
+                        <input id="message-input" value={draft} onChange={e=>setDraft(e.target.value)} placeholder={isAiThinking ? "Kin is thinking…" : "Ask Kin anything… (e.g. 'Someone wants me to install AnyDesk')"} disabled={isAiThinking} data-testid="input-message"/>
+                        <button type="submit" className="send-button" aria-label="Send message" disabled={isAiThinking || !draft.trim()} data-testid="button-send-message"><Send size={17}/></button>
                       </form>
                       <div className="conversation-tools">
                         <span><CircleHelp size={14}/> You’re in control. Ask, pause, or stop anytime.</span>
